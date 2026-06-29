@@ -40,7 +40,14 @@ final class CodexStatusStore: ObservableObject {
         let weeklyReset = StatusFormatters.statusBarDateTimeText(quota?.longWindow?.resetsAt)
         let resets = quota?.resetCreditsAvailable ?? "--"
         let resetExpiry = StatusFormatters.statusBarDateTimeText(quota?.resetCreditsExpiresAt)
-        return "5h \(fiveHour) \(fiveHourReset) | 周 \(weekly) \(weeklyReset) | 重置 \(resets) \(resetExpiry) | \(phase.title)"
+        return "\(taskStatusText) | 5h \(fiveHour)/\(fiveHourReset) | 周 \(weekly)/\(weeklyReset) | 重置 \(resets)/\(resetExpiry)"
+    }
+
+    private var taskStatusText: String {
+        guard phase == .running, activity != phase.title, !activity.isEmpty else {
+            return phase.title
+        }
+        return "\(phase.title):\(activity)"
     }
 
     init() {

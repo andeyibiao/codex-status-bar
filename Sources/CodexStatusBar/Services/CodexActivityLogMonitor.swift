@@ -54,7 +54,7 @@ final class CodexActivityLogMonitor {
         }
 
         let sql = """
-        select id, ts, ts_nanos, target, thread_id, substr(feedback_log_body, 1, 4000) as body
+        select id, ts, ts_nanos, target, thread_id, substr(feedback_log_body, 1, 1600) as body
         from logs
         where ts >= strftime('%s','now') - \(recentSeconds)
           and (
@@ -66,7 +66,7 @@ final class CodexActivityLogMonitor {
             or target = 'codex_otel.log_only'
           )
         order by ts desc, ts_nanos desc, id desc
-        limit 1200;
+        limit 250;
         """
 
         do {
@@ -88,9 +88,8 @@ final class CodexActivityLogMonitor {
         process.standardError = errorPipe
 
         try process.run()
-        process.waitUntilExit()
-
         let output = outputPipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
         guard process.terminationStatus == 0 else {
             throw CodexClientError.invalidResponse
         }
