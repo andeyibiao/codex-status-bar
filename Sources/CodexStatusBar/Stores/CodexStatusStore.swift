@@ -16,13 +16,25 @@ final class CodexStatusStore: ObservableObject {
     private var activityRefreshTask: Task<Void, Never>?
 
     var statusBarText: String {
+        "\(statusBarTaskText) | \(statusBarQuotaText)"
+    }
+
+    var statusBarTaskText: String {
+        taskStatusText
+    }
+
+    var statusBarQuotaText: String {
         let fiveHour = StatusFormatters.percentText(quota?.shortWindow?.remainingPercent)
         let fiveHourReset = StatusFormatters.statusBarTimeText(quota?.shortWindow?.resetsAt)
         let weekly = StatusFormatters.percentText(quota?.longWindow?.remainingPercent)
         let weeklyReset = StatusFormatters.statusBarDateTimeText(quota?.longWindow?.resetsAt)
         let resets = resetCreditsCountText(quota?.resetCreditsAvailable)
         let resetExpiry = StatusFormatters.statusBarDateTimeText(quota?.resetCreditsExpiresAt)
-        return "\(taskStatusText) | 5h \(fiveHour)/\(fiveHourReset) | 周 \(weekly)/\(weeklyReset) | 重置 \(resets)/\(resetExpiry)"
+        return "5h \(fiveHour)/\(fiveHourReset) | 周 \(weekly)/\(weeklyReset) | 重置 \(resets)/\(resetExpiry)"
+    }
+
+    var needsUserAttention: Bool {
+        phase == .waiting
     }
 
     private var taskStatusText: String {
