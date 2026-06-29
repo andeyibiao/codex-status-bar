@@ -21,7 +21,7 @@ struct StatusPanelView: View {
 
             statusRow(
                 title: "剩余可用重置次数",
-                value: store.quota?.resetCreditsAvailable ?? "--",
+                value: store.resetCreditsCountText(store.quota?.resetCreditsAvailable),
                 detailTitle: "过期时间",
                 detail: StatusFormatters.resetText(store.quota?.resetCreditsExpiresAt)
             )

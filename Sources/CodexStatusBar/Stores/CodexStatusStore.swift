@@ -39,7 +39,7 @@ final class CodexStatusStore: ObservableObject {
         let fiveHourReset = StatusFormatters.statusBarTimeText(quota?.shortWindow?.resetsAt)
         let weekly = StatusFormatters.percentText(quota?.longWindow?.remainingPercent)
         let weeklyReset = StatusFormatters.statusBarDateTimeText(quota?.longWindow?.resetsAt)
-        let resets = quota?.resetCreditsAvailable ?? "--"
+        let resets = resetCreditsCountText(quota?.resetCreditsAvailable)
         let resetExpiry = StatusFormatters.statusBarDateTimeText(quota?.resetCreditsExpiresAt)
         return "\(taskStatusText) | 5h \(fiveHour)/\(fiveHourReset) | 周 \(weekly)/\(weeklyReset) | 重置 \(resets)/\(resetExpiry)"
     }
@@ -49,6 +49,11 @@ final class CodexStatusStore: ObservableObject {
             return phase.title
         }
         return "\(phase.title):\(activity)"
+    }
+
+    func resetCreditsCountText(_ value: String?) -> String {
+        guard let value, !value.isEmpty else { return "--" }
+        return "\(value)次"
     }
 
     init() {
