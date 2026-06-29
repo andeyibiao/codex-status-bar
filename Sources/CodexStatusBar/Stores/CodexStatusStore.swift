@@ -12,6 +12,7 @@ final class CodexStatusStore: ObservableObject {
     @Published var isConnected = false
 
     private let client = CodexAppServerClient()
+    private let resetCreditsClient = CodexResetCreditsClient()
     private let activityLogMonitor = CodexActivityLogMonitor()
     private var currentThreadID: String?
     private var currentTurnID: String?
@@ -105,7 +106,16 @@ final class CodexStatusStore: ObservableObject {
             async let accountResponse = client.request(method: "account/read", params: ["refreshToken": false])
             async let limitsResponse = client.request(method: "account/rateLimits/read")
             let (account, limits) = try await (accountResponse, limitsResponse)
-            quota = parseRateLimitSnapshot(account: account, limits: limits)
+            var snapshot = parseRateLimitSnapshot(account: account, limits: limits)
+            if let resetCredits = try? await resetCreditsClient.fetch() {
+                let availableCount = resetCredits.availableCount
+                    ?? snapshot?.resetCreditsAvailable
+                snapshot?.resetCreditsAvailable = availableCount
+                snapshot?.resetCreditsExpiresAt = resetCredits.expiresAt
+            } else {
+                snapshot?.resetCreditsExpiresAt = nil
+            }
+            quota = snapshot
         } catch {
             // Product choice: silent failure. Keep the last successful snapshot.
         }
@@ -233,7 +243,7 @@ final class CodexStatusStore: ObservableObject {
         quotaRefreshTask?.cancel()
         quotaRefreshTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(30))
+                try? await Task.sleep(for: .seconds(5))
                 guard !Task.isCancelled else { break }
                 await self?.refreshQuota()
             }
@@ -474,6 +484,18 @@ final class CodexStatusStore: ObservableObject {
     }
 
     private func parseDate(_ value: Any?) -> Date? {
+        if let value = value as? String {
+            let fractional = ISO8601DateFormatter()
+            fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let date = fractional.date(from: value) {
+                return date
+            }
+
+            let standard = ISO8601DateFormatter()
+            standard.formatOptions = [.withInternetDateTime]
+            return standard.date(from: value)
+        }
+
         guard let timestamp = numberValue(value) else { return nil }
         let seconds = timestamp > 10_000_000_000 ? timestamp / 1000 : timestamp
         return Date(timeIntervalSince1970: seconds)
