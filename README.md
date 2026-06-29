@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/assets/preview.png" alt="Codex Status Bar preview">
+  <img src="docs/assets/preview.jpg" alt="Codex Status Bar preview">
 </p>
 
 ## 功能
