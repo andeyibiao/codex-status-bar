@@ -30,6 +30,8 @@ final class CodexActivityLogMonitor {
     private let databaseURL: URL
     private let recentSeconds: Int
     private let activeStaleSeconds: TimeInterval = 600
+    private let streamVisibleSeconds: TimeInterval = 4
+    private let toolArgumentVisibleSeconds: TimeInterval = 8
     private let completedVisibleSeconds: TimeInterval = 12
 
     init(
@@ -236,7 +238,7 @@ final class CodexActivityLogMonitor {
                 date: date,
                 phase: .running,
                 detail: "输出中",
-                visibleSeconds: activeStaleSeconds
+                visibleSeconds: streamVisibleSeconds
             )
         case "turn/completed":
             return ActivityEvent(
@@ -269,7 +271,7 @@ final class CodexActivityLogMonitor {
                 date: date,
                 phase: .running,
                 detail: "输出中",
-                visibleSeconds: activeStaleSeconds
+                visibleSeconds: streamVisibleSeconds
             )
         case "response.output_item.added", "response.output_item.done":
             let detail = responseOutputItemDetail(from: body)
@@ -277,7 +279,7 @@ final class CodexActivityLogMonitor {
                 date: date,
                 phase: detail == "等待确认" ? .waiting : .running,
                 detail: detail,
-                visibleSeconds: activeStaleSeconds
+                visibleSeconds: responseOutputItemVisibleSeconds(from: detail)
             )
         case "response.function_call_arguments.delta",
              "response.function_call_arguments.done":
@@ -285,7 +287,7 @@ final class CodexActivityLogMonitor {
                 date: date,
                 phase: .running,
                 detail: "调用工具",
-                visibleSeconds: activeStaleSeconds
+                visibleSeconds: toolArgumentVisibleSeconds
             )
         case "response.completed":
             return ActivityEvent(
@@ -314,6 +316,17 @@ final class CodexActivityLogMonitor {
             return "输出中"
         }
         return "运行中"
+    }
+
+    private func responseOutputItemVisibleSeconds(from detail: String) -> TimeInterval {
+        switch detail {
+        case "输出中":
+            return streamVisibleSeconds
+        case "调用工具", "执行命令", "修改文件":
+            return toolArgumentVisibleSeconds
+        default:
+            return activeStaleSeconds
+        }
     }
 
     private func responseEventName(from body: String) -> String? {
