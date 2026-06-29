@@ -260,4 +260,4 @@ script/build_and_run.sh --debug
 
 ## License
 
-尚未添加许可证文件。开源发布前建议补充 `LICENSE`，例如 MIT License。
+MIT License. See [LICENSE](LICENSE).
