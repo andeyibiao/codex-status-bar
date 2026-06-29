@@ -19,9 +19,6 @@ enum CodexClientError: LocalizedError {
 final class CodexAppServerClient {
     typealias JSONObject = [String: Any]
 
-    var onNotification: ((JSONObject) -> Void)?
-    var onServerRequest: ((JSONObject) -> Void)?
-
     private let queue = DispatchQueue(label: "codex.statusbar.appserver")
     private var process: Process?
     private var inputPipe: Pipe?
@@ -46,10 +43,8 @@ final class CodexAppServerClient {
 
         let stdin = Pipe()
         let stdout = Pipe()
-        let stderr = Pipe()
         process.standardInput = stdin
         process.standardOutput = stdout
-        process.standardError = stderr
         process.terminationHandler = { [weak self] _ in
             self?.failPending(CodexClientError.processExited)
         }
@@ -110,7 +105,7 @@ final class CodexAppServerClient {
         }
     }
 
-    func sendNotification(method: String, params: Any? = nil) throws {
+    private func sendNotification(method: String, params: Any? = nil) throws {
         var message: JSONObject = ["method": method]
         if let params {
             message["params"] = params
@@ -166,12 +161,6 @@ final class CodexAppServerClient {
                 continuation.resume(returning: [:])
             }
             return
-        }
-
-        if message["id"] != nil {
-            onServerRequest?(message)
-        } else {
-            onNotification?(message)
         }
     }
 

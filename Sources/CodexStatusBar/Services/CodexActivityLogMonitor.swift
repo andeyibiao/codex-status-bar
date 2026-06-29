@@ -6,13 +6,10 @@ final class CodexActivityLogMonitor {
         var ts: TimeInterval
         var ts_nanos: Int64
         var target: String
-        var thread_id: String?
         var body: String?
     }
 
     private struct TurnState {
-        var turnID: String
-        var startedAt: Date
         var lastActivityAt: Date
         var terminalAt: Date?
         var detail = "运行中"
@@ -54,7 +51,7 @@ final class CodexActivityLogMonitor {
         }
 
         let sql = """
-        select id, ts, ts_nanos, target, thread_id, substr(feedback_log_body, 1, 1600) as body
+        select id, ts, ts_nanos, target, substr(feedback_log_body, 1, 1600) as body
         from logs
         where ts >= strftime('%s','now') - \(recentSeconds)
           and (
@@ -83,9 +80,7 @@ final class CodexActivityLogMonitor {
         process.arguments = ["-json", databaseURL.path, sql]
 
         let outputPipe = Pipe()
-        let errorPipe = Pipe()
         process.standardOutput = outputPipe
-        process.standardError = errorPipe
 
         try process.run()
         let output = outputPipe.fileHandleForReading.readDataToEndOfFile()
@@ -126,12 +121,9 @@ final class CodexActivityLogMonitor {
 
             guard let turnID = turnID(from: body) else { continue }
             var state = turns[turnID] ?? TurnState(
-                turnID: turnID,
-                startedAt: date,
                 lastActivityAt: date
             )
 
-            state.startedAt = min(state.startedAt, date)
             state.lastActivityAt = max(state.lastActivityAt, date)
             state.detail = activityDetail(from: body, fallback: state.detail)
 
@@ -159,10 +151,10 @@ final class CodexActivityLogMonitor {
         if let activeTurn = recentTurns.first(where: {
             !$0.isTerminal && now.timeIntervalSince($0.lastActivityAt) <= activeStaleSeconds
         }) {
+            let phase: ExecutionPhase = activeTurn.detail == "等待确认" ? .waiting : .running
             return CodexActivitySnapshot(
-                phase: .running,
-                detail: activeTurn.detail,
-                observedAt: activeTurn.lastActivityAt
+                phase: phase,
+                detail: activeTurn.detail
             )
         }
 
@@ -172,8 +164,7 @@ final class CodexActivityLogMonitor {
         {
             return CodexActivitySnapshot(
                 phase: .failed,
-                detail: failedTurn.detail,
-                observedAt: failedAt
+                detail: failedTurn.detail
             )
         }
 
@@ -183,8 +174,7 @@ final class CodexActivityLogMonitor {
         {
             return CodexActivitySnapshot(
                 phase: .completed,
-                detail: "已完成",
-                observedAt: terminalAt
+                detail: "已完成"
             )
         }
 
@@ -200,19 +190,19 @@ final class CodexActivityLogMonitor {
         switch event.name {
         case "turn/started":
             if age <= activeStaleSeconds {
-                return CodexActivitySnapshot(phase: .running, detail: "运行中", observedAt: event.date)
+                return CodexActivitySnapshot(phase: .running, detail: "运行中")
             }
         case "item/started":
             if age <= activeStaleSeconds {
-                return CodexActivitySnapshot(phase: .running, detail: "执行中", observedAt: event.date)
+                return CodexActivitySnapshot(phase: .running, detail: "执行中")
             }
         case "item/agentMessage/delta":
             if age <= activeStaleSeconds {
-                return CodexActivitySnapshot(phase: .running, detail: "输出中", observedAt: event.date)
+                return CodexActivitySnapshot(phase: .running, detail: "输出中")
             }
         case "turn/completed":
             if age <= completedVisibleSeconds {
-                return CodexActivitySnapshot(phase: .completed, detail: "已完成", observedAt: event.date)
+                return CodexActivitySnapshot(phase: .completed, detail: "已完成")
             }
         default:
             break
