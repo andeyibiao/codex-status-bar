@@ -245,6 +245,9 @@ final class CodexActivityLogMonitor {
         if body.contains("commandExecution") || body.contains("exec_command") {
             return "执行命令"
         }
+        if isBrowserNavigationToolCall(body) {
+            return "等待确认"
+        }
         if body.contains("ToolCall") || body.contains("function_call") || body.contains("output_item.added") {
             return "调用工具"
         }
@@ -255,6 +258,16 @@ final class CodexActivityLogMonitor {
             return "思考中"
         }
         return fallback
+    }
+
+    private func isBrowserNavigationToolCall(_ body: String) -> Bool {
+        let isBrowserTool = body.contains("mcp__node_repljs")
+            || body.contains("codex/browserUse")
+            || body.contains("browser.capabilities")
+        let opensPage = body.contains(".goto(")
+            || body.contains("tab.goto")
+            || body.contains("page.goto")
+        return isBrowserTool && opensPage
     }
 
     private func isTerminalTurnEvent(_ body: String) -> Bool {
