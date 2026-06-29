@@ -5,6 +5,7 @@ final class CodexStatusStore: ObservableObject {
     @Published var phase: ExecutionPhase = .disconnected
     @Published var activity = "连接中"
     @Published var quota: RateLimitSnapshot?
+    @Published var isAttentionDimmed = false
 
     private let client = CodexAppServerClient()
     private let resetCreditsClient = CodexResetCreditsClient()
@@ -14,6 +15,7 @@ final class CodexStatusStore: ObservableObject {
     private var isConnected = false
     private var quotaRefreshTask: Task<Void, Never>?
     private var activityRefreshTask: Task<Void, Never>?
+    private var attentionBlinkTask: Task<Void, Never>?
 
     var statusBarText: String {
         "\(statusBarTaskText) | \(statusBarQuotaText)"
@@ -54,11 +56,13 @@ final class CodexStatusStore: ObservableObject {
             await connect()
         }
         startActivityRefreshLoop()
+        startAttentionBlinkLoop()
     }
 
     deinit {
         quotaRefreshTask?.cancel()
         activityRefreshTask?.cancel()
+        attentionBlinkTask?.cancel()
         client.stop()
     }
 
@@ -125,6 +129,23 @@ final class CodexStatusStore: ObservableObject {
                 try? await Task.sleep(for: .seconds(1))
                 guard !Task.isCancelled else { break }
                 await self?.refreshActivity()
+            }
+        }
+    }
+
+    private func startAttentionBlinkLoop() {
+        attentionBlinkTask?.cancel()
+        attentionBlinkTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(650))
+                guard !Task.isCancelled else { break }
+                guard let self else { break }
+
+                if self.needsUserAttention {
+                    self.isAttentionDimmed.toggle()
+                } else {
+                    self.isAttentionDimmed = false
+                }
             }
         }
     }
