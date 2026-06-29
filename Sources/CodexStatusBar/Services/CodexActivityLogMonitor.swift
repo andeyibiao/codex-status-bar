@@ -58,6 +58,7 @@ final class CodexActivityLogMonitor {
             target = 'codex_app_server::outgoing_message'
             or target = 'codex_core::session::turn'
             or target = 'codex_core::stream_events_utils'
+            or target = 'codex_api::sse::responses'
             or target = 'codex_api::endpoint::responses_websocket'
             or target = 'codex_otel.trace_safe'
             or target = 'codex_otel.log_only'
@@ -195,6 +196,10 @@ final class CodexActivityLogMonitor {
         case "item/started":
             if age <= activeStaleSeconds {
                 return CodexActivitySnapshot(phase: .running, detail: "执行中")
+            }
+        case "item/completed":
+            if age <= activeStaleSeconds {
+                return CodexActivitySnapshot(phase: .running, detail: "思考中")
             }
         case "item/agentMessage/delta":
             if age <= activeStaleSeconds {
