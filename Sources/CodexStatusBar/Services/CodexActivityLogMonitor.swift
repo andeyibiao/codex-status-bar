@@ -20,9 +20,11 @@ final class CodexActivityLogMonitor {
         }
     }
 
-    private struct ServerEvent {
+    private struct ActivityEvent {
         var date: Date
-        var name: String
+        var phase: ExecutionPhase
+        var detail: String
+        var visibleSeconds: TimeInterval
     }
 
     private let databaseURL: URL
@@ -108,16 +110,21 @@ final class CodexActivityLogMonitor {
         }
 
         var turns: [String: TurnState] = [:]
-        var latestServerEvent: ServerEvent?
+        var latestActivityEvent: ActivityEvent?
 
         for row in orderedRows {
             guard let body = row.body, !body.isEmpty else { continue }
             let date = Date(timeIntervalSince1970: row.ts)
 
             if row.target == "codex_app_server::outgoing_message",
-               let eventName = appServerEventName(from: body)
+               let eventName = appServerEventName(from: body),
+               let event = appServerActivityEvent(named: eventName, at: date)
             {
-                latestServerEvent = ServerEvent(date: date, name: eventName)
+                latestActivityEvent = event
+            } else if row.target == "codex_api::sse::responses",
+                      let event = responseActivityEvent(from: body, at: date)
+            {
+                latestActivityEvent = event
             }
 
             guard let turnID = turnID(from: body) else { continue }
@@ -139,19 +146,28 @@ final class CodexActivityLogMonitor {
             turns[turnID] = state
         }
 
-        return snapshot(from: Array(turns.values), latestServerEvent: latestServerEvent)
+        return snapshot(from: Array(turns.values), latestActivityEvent: latestActivityEvent)
     }
 
     private func snapshot(
         from turns: [TurnState],
-        latestServerEvent: ServerEvent?
+        latestActivityEvent: ActivityEvent?
     ) -> CodexActivitySnapshot {
         let now = Date()
         let recentTurns = turns.sorted { $0.lastActivityAt > $1.lastActivityAt }
+        let eventSnapshot = latestActivityEvent.flatMap { snapshot(from: $0, now: now) }
 
         if let activeTurn = recentTurns.first(where: {
             !$0.isTerminal && now.timeIntervalSince($0.lastActivityAt) <= activeStaleSeconds
         }) {
+            if let latestActivityEvent,
+               let eventSnapshot,
+               latestActivityEvent.date >= activeTurn.lastActivityAt,
+               eventSnapshot.phase == .completed || eventSnapshot.phase == .failed
+            {
+                return eventSnapshot
+            }
+
             let phase: ExecutionPhase = activeTurn.detail == "等待确认" ? .waiting : .running
             return CodexActivitySnapshot(
                 phase: phase,
@@ -179,40 +195,138 @@ final class CodexActivityLogMonitor {
             )
         }
 
-        if let latestServerEvent {
-            return snapshot(from: latestServerEvent, now: now)
+        if let eventSnapshot {
+            return eventSnapshot
         }
 
         return .idle
     }
 
-    private func snapshot(from event: ServerEvent, now: Date) -> CodexActivitySnapshot {
+    private func snapshot(from event: ActivityEvent, now: Date) -> CodexActivitySnapshot? {
         let age = now.timeIntervalSince(event.date)
-        switch event.name {
+        guard age <= event.visibleSeconds else { return nil }
+        return CodexActivitySnapshot(phase: event.phase, detail: event.detail)
+    }
+
+    private func appServerActivityEvent(named name: String, at date: Date) -> ActivityEvent? {
+        switch name {
         case "turn/started":
-            if age <= activeStaleSeconds {
-                return CodexActivitySnapshot(phase: .running, detail: "运行中")
-            }
+            return ActivityEvent(
+                date: date,
+                phase: .running,
+                detail: "运行中",
+                visibleSeconds: activeStaleSeconds
+            )
         case "item/started":
-            if age <= activeStaleSeconds {
-                return CodexActivitySnapshot(phase: .running, detail: "执行中")
-            }
+            return ActivityEvent(
+                date: date,
+                phase: .running,
+                detail: "执行中",
+                visibleSeconds: activeStaleSeconds
+            )
         case "item/completed":
-            if age <= activeStaleSeconds {
-                return CodexActivitySnapshot(phase: .running, detail: "思考中")
-            }
+            return ActivityEvent(
+                date: date,
+                phase: .running,
+                detail: "思考中",
+                visibleSeconds: activeStaleSeconds
+            )
         case "item/agentMessage/delta":
-            if age <= activeStaleSeconds {
-                return CodexActivitySnapshot(phase: .running, detail: "输出中")
-            }
+            return ActivityEvent(
+                date: date,
+                phase: .running,
+                detail: "输出中",
+                visibleSeconds: activeStaleSeconds
+            )
         case "turn/completed":
-            if age <= completedVisibleSeconds {
-                return CodexActivitySnapshot(phase: .completed, detail: "已完成")
-            }
+            return ActivityEvent(
+                date: date,
+                phase: .completed,
+                detail: "已完成",
+                visibleSeconds: completedVisibleSeconds
+            )
         default:
-            break
+            return nil
         }
-        return .idle
+    }
+
+    private func responseActivityEvent(from body: String, at date: Date) -> ActivityEvent? {
+        guard let eventName = responseEventName(from: body) else { return nil }
+
+        switch eventName {
+        case "response.created", "response.in_progress":
+            return ActivityEvent(
+                date: date,
+                phase: .running,
+                detail: "思考中",
+                visibleSeconds: activeStaleSeconds
+            )
+        case "response.output_text.delta",
+             "response.output_text.done",
+             "response.content_part.added",
+             "response.content_part.done":
+            return ActivityEvent(
+                date: date,
+                phase: .running,
+                detail: "输出中",
+                visibleSeconds: activeStaleSeconds
+            )
+        case "response.output_item.added", "response.output_item.done":
+            let detail = responseOutputItemDetail(from: body)
+            return ActivityEvent(
+                date: date,
+                phase: detail == "等待确认" ? .waiting : .running,
+                detail: detail,
+                visibleSeconds: activeStaleSeconds
+            )
+        case "response.function_call_arguments.delta",
+             "response.function_call_arguments.done":
+            return ActivityEvent(
+                date: date,
+                phase: .running,
+                detail: "调用工具",
+                visibleSeconds: activeStaleSeconds
+            )
+        case "response.completed":
+            return ActivityEvent(
+                date: date,
+                phase: .completed,
+                detail: "已完成",
+                visibleSeconds: completedVisibleSeconds
+            )
+        case "response.failed", "response.incomplete":
+            return ActivityEvent(
+                date: date,
+                phase: .failed,
+                detail: "失败",
+                visibleSeconds: completedVisibleSeconds
+            )
+        default:
+            return nil
+        }
+    }
+
+    private func responseOutputItemDetail(from body: String) -> String {
+        if body.contains("\"type\":\"function_call\"") {
+            return activityDetail(from: body, fallback: "调用工具")
+        }
+        if body.contains("\"type\":\"message\"") {
+            return "输出中"
+        }
+        return "运行中"
+    }
+
+    private func responseEventName(from body: String) -> String? {
+        if let typeRange = body.range(of: "\"type\":\"") {
+            let suffix = body[typeRange.upperBound...]
+            return suffix.split(separator: "\"").first.map(String.init)
+        }
+
+        guard let range = body.range(of: "unhandled responses event: ") else {
+            return nil
+        }
+        let suffix = body[range.upperBound...]
+        return suffix.split(whereSeparator: { $0.isWhitespace }).first.map(String.init)
     }
 
     private func appServerEventName(from body: String) -> String? {
