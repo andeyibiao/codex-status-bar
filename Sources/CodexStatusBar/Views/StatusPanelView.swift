@@ -113,9 +113,9 @@ struct StatusPanelView: View {
     private func quotaTint(_ remaining: Double?) -> Color {
         guard let remaining else { return .secondary }
         switch remaining {
-        case ..<20:
+        case ..<25:
             return .red
-        case ..<50:
+        case ..<60:
             return .orange
         default:
             return .green
