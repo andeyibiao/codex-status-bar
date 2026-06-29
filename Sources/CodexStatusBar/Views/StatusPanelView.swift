@@ -80,13 +80,12 @@ struct StatusPanelView: View {
 
             rowDivider
 
-            MetricRow(
+            ResetCreditsRow(
                 title: "剩余可用重置次数",
                 value: store.resetCreditsCountText(store.quota?.resetCreditsAvailable),
                 detailLabel: "过期",
                 detail: StatusFormatters.panelDateTimeText(store.quota?.resetCreditsExpiresAt),
-                progress: nil,
-                tint: .secondary
+                credits: store.quota?.resetCredits ?? []
             )
         }
         .background(
@@ -169,6 +168,65 @@ private struct MetricRow: View {
 
     private func clamped(_ value: Double) -> Double {
         min(max(value, 0), 100)
+    }
+}
+
+private struct ResetCreditsRow: View {
+    var title: String
+    var value: String
+    var detailLabel: String
+    var detail: String
+    var credits: [ResetCreditSnapshot]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.subheadline.weight(.medium))
+
+                    HStack(spacing: 4) {
+                        Text(detailLabel)
+                        Text(detail)
+                            .monospacedDigit()
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+
+                Spacer(minLength: 12)
+
+                Text(value)
+                    .font(.system(size: 21, weight: .semibold, design: .rounded).monospacedDigit())
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+
+            resetCreditDetails
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+    }
+
+    @ViewBuilder
+    private var resetCreditDetails: some View {
+        if credits.isEmpty {
+            EmptyView()
+        } else {
+            VStack(spacing: 4) {
+                ForEach(credits) { credit in
+                    HStack(spacing: 8) {
+                        Text("第 \(credit.id) 次")
+                            .foregroundStyle(.secondary)
+                        Spacer(minLength: 12)
+                        Text(StatusFormatters.panelDateTimeText(credit.expiresAt))
+                            .monospacedDigit()
+                    }
+                    .font(.caption)
+                }
+            }
+            .padding(.top, 2)
+        }
     }
 }
 

@@ -3,6 +3,7 @@ import Foundation
 struct ResetCreditsSnapshot: Equatable {
     var availableCount: String?
     var expiresAt: Date?
+    var credits: [ResetCreditSnapshot]
 }
 
 enum CodexResetCreditsError: Error {
@@ -44,13 +45,22 @@ final class CodexResetCreditsClient {
         let availableCredits = decoded.credits.filter { credit in
             credit.status == nil || credit.status == "available"
         }
-        let expiry = availableCredits
-            .compactMap { Self.parseDate($0.expiresAt) }
+        let credits = availableCredits
+            .map { Self.parseDate($0.expiresAt) }
+            .sorted(by: Self.sortDatesWithNilLast)
+            .enumerated()
+            .map { offset, expiresAt in
+                ResetCreditSnapshot(id: offset + 1, expiresAt: expiresAt)
+            }
+        let expiry = credits
+            .compactMap(\.expiresAt)
             .min()
+        let availableCount = decoded.availableCount ?? credits.count
 
         return ResetCreditsSnapshot(
-            availableCount: decoded.availableCount.map(String.init),
-            expiresAt: expiry
+            availableCount: String(availableCount),
+            expiresAt: expiry,
+            credits: credits
         )
     }
 
@@ -81,6 +91,19 @@ final class CodexResetCreditsClient {
         let standard = ISO8601DateFormatter()
         standard.formatOptions = [.withInternetDateTime]
         return standard.date(from: value)
+    }
+
+    private static func sortDatesWithNilLast(_ lhs: Date?, _ rhs: Date?) -> Bool {
+        switch (lhs, rhs) {
+        case let (lhs?, rhs?):
+            return lhs < rhs
+        case (_?, nil):
+            return true
+        case (nil, _?):
+            return false
+        case (nil, nil):
+            return false
+        }
     }
 }
 

@@ -36,6 +36,12 @@ struct RateLimitSnapshot: Equatable {
     var longWindow: RateLimitWindowSnapshot?
     var resetCreditsAvailable: String?
     var resetCreditsExpiresAt: Date?
+    var resetCredits: [ResetCreditSnapshot] = []
+}
+
+struct ResetCreditSnapshot: Identifiable, Equatable {
+    var id: Int
+    var expiresAt: Date?
 }
 
 struct CodexActivitySnapshot: Equatable {

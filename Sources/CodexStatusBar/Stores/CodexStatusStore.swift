@@ -101,8 +101,10 @@ final class CodexStatusStore: ObservableObject {
                     ?? snapshot?.resetCreditsAvailable
                 snapshot?.resetCreditsAvailable = availableCount
                 snapshot?.resetCreditsExpiresAt = resetCredits.expiresAt
+                snapshot?.resetCredits = resetCredits.credits
             } else {
                 snapshot?.resetCreditsExpiresAt = nil
+                snapshot?.resetCredits = []
             }
             quota = snapshot
         } catch {
@@ -169,7 +171,8 @@ final class CodexStatusStore: ObservableObject {
             resetCreditsAvailable: stringValue(resetCredits?["availableCount"]),
             resetCreditsExpiresAt: parseDate(resetCredits?["expiresAt"])
                 ?? parseDate(resetCredits?["expiration"])
-                ?? parseDate(resetCredits?["expires_at"])
+                ?? parseDate(resetCredits?["expires_at"]),
+            resetCredits: []
         )
     }
 
