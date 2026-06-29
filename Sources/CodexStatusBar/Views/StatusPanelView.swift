@@ -14,12 +14,12 @@ struct StatusPanelView: View {
     private var taskHeader: some View {
         HStack(spacing: 10) {
             Image(systemName: store.phase.panelSymbolName)
-                .symbolRenderingMode(.hierarchical)
+                .symbolRenderingMode(.monochrome)
                 .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(store.phase.panelColor)
+                .foregroundStyle(.white)
                 .frame(width: 30, height: 30)
                 .background(
-                    store.phase.panelColor.opacity(0.14),
+                    store.phase.panelColor,
                     in: RoundedRectangle(cornerRadius: 7, style: .continuous)
                 )
 
@@ -37,22 +37,22 @@ struct StatusPanelView: View {
 
             Text(store.phase.title)
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(store.phase.panelColor)
+                .foregroundStyle(.white)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
                 .background(
-                    store.phase.panelColor.opacity(0.12),
+                    store.phase.panelColor,
                     in: RoundedRectangle(cornerRadius: 6, style: .continuous)
                 )
         }
         .padding(10)
         .background(
-            Color.secondary.opacity(0.07),
+            store.phase.panelColor.opacity(0.08),
             in: RoundedRectangle(cornerRadius: 8, style: .continuous)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(Color(nsColor: .separatorColor).opacity(0.45), lineWidth: 0.5)
+                .stroke(store.phase.panelColor.opacity(0.28), lineWidth: 0.5)
         )
     }
 
