@@ -108,17 +108,22 @@ struct StatusPanelView: View {
 
     private var displaySettingsGroup: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                Image(systemName: "menubar.rectangle")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 18)
-                Text("状态栏展示")
-                    .font(.subheadline.weight(.semibold))
-                Spacer()
-            }
+            Label("状态栏内容", systemImage: "slider.horizontal.3")
+                .font(.subheadline.weight(.semibold))
 
-            VStack(spacing: 8) {
+            StatusBarPreview(
+                showsIcon: store.statusBarConfiguration.showIcon,
+                text: store.statusBarText
+            )
+
+            LazyVGrid(
+                columns: [
+                    GridItem(.flexible(), alignment: .leading),
+                    GridItem(.flexible(), alignment: .leading)
+                ],
+                alignment: .leading,
+                spacing: 7
+            ) {
                 DisplayToggleRow(
                     title: "图标",
                     systemImage: "cube.transparent",
@@ -199,6 +204,44 @@ struct StatusPanelView: View {
     }
 }
 
+private struct StatusBarPreview: View {
+    var showsIcon: Bool
+    var text: String
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text("预览")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(width: 34, alignment: .leading)
+
+            HStack(spacing: 5) {
+                if showsIcon {
+                    Image(systemName: "cube.transparent")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+
+                Text(text)
+                    .font(.system(size: 11, design: .monospaced))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+            .padding(.horizontal, 7)
+            .padding(.vertical, 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                Color(nsColor: .controlBackgroundColor),
+                in: RoundedRectangle(cornerRadius: 5, style: .continuous)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .stroke(Color(nsColor: .separatorColor).opacity(0.45), lineWidth: 0.5)
+            )
+        }
+    }
+}
+
 private struct DisplayToggleRow: View {
     var title: String
     var systemImage: String
@@ -215,8 +258,9 @@ private struct DisplayToggleRow: View {
             }
             .font(.caption)
         }
-        .toggleStyle(.switch)
+        .toggleStyle(.checkbox)
         .controlSize(.small)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
