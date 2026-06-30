@@ -32,6 +32,7 @@ final class CodexActivityLogMonitor {
     private let activeStaleSeconds: TimeInterval = 600
     private let streamVisibleSeconds: TimeInterval = 4
     private let toolArgumentVisibleSeconds: TimeInterval = 8
+    private let fileEditVisibleSeconds: TimeInterval = 45
     private let completedVisibleSeconds: TimeInterval = 12
 
     init(
@@ -66,6 +67,17 @@ final class CodexActivityLogMonitor {
             or target = 'codex_api::endpoint::responses_websocket'
             or target = 'codex_otel.trace_safe'
             or target = 'codex_otel.log_only'
+            or (
+              target = 'log'
+              and (
+                feedback_log_body like '%otel.name=apply_patch%'
+                or feedback_log_body like '%tool_name=apply_patch%'
+                or feedback_log_body like '%patchUpdated%'
+                or feedback_log_body like '%fileChange%'
+                or feedback_log_body like '%dispatch_tool_call%'
+                or feedback_log_body like '%custom_tool_call%'
+              )
+            )
           )
         order by ts desc, ts_nanos desc, id desc
         limit 250;
@@ -127,6 +139,11 @@ final class CodexActivityLogMonitor {
                       let event = responseActivityEvent(from: body, at: date)
             {
                 latestActivityEvent = event
+            } else if row.target == "log",
+                      let event = logActivityEvent(from: body, at: date)
+            {
+                latestActivityEvent = event
+                continue
             }
 
             guard let turnID = turnID(from: body) else { continue }
@@ -318,11 +335,24 @@ final class CodexActivityLogMonitor {
         return "运行中"
     }
 
+    private func logActivityEvent(from body: String, at date: Date) -> ActivityEvent? {
+        let detail = activityDetail(from: body, fallback: "调用工具")
+        guard detail != "思考中" && detail != "输出中" else { return nil }
+        return ActivityEvent(
+            date: date,
+            phase: detail == "等待确认" ? .waiting : .running,
+            detail: detail,
+            visibleSeconds: responseOutputItemVisibleSeconds(from: detail)
+        )
+    }
+
     private func responseOutputItemVisibleSeconds(from detail: String) -> TimeInterval {
         switch detail {
         case "输出中":
             return streamVisibleSeconds
-        case "调用工具", "执行命令", "修改文件":
+        case "修改文件":
+            return fileEditVisibleSeconds
+        case "调用工具", "执行命令":
             return toolArgumentVisibleSeconds
         default:
             return activeStaleSeconds
@@ -371,7 +401,7 @@ final class CodexActivityLogMonitor {
         if body.contains("requestApproval") || body.contains("has_pending_input=true") {
             return "等待确认"
         }
-        if body.contains("apply_patch") || body.contains("patchUpdated") || body.contains("fileChange") {
+        if isFileEditEvent(body) {
             return "修改文件"
         }
         if body.contains("commandExecution") || body.contains("exec_command") {
@@ -390,6 +420,15 @@ final class CodexActivityLogMonitor {
             return "思考中"
         }
         return fallback
+    }
+
+    private func isFileEditEvent(_ body: String) -> Bool {
+        body.contains("\"name\":\"apply_patch\"")
+            || body.contains("name=apply_patch")
+            || body.contains("tool_name=apply_patch")
+            || body.contains("otel.name=apply_patch")
+            || body.contains("patchUpdated")
+            || body.contains("fileChange")
     }
 
     private func isBrowserNavigationToolCall(_ body: String) -> Bool {
