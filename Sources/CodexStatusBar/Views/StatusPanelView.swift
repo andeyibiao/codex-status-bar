@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct StatusPanelView: View {
@@ -7,6 +8,8 @@ struct StatusPanelView: View {
         VStack(alignment: .leading, spacing: 12) {
             taskHeader
             metricsGroup
+            displaySettingsGroup
+            footerActions
         }
         .padding(14)
     }
@@ -103,6 +106,69 @@ struct StatusPanelView: View {
             .padding(.horizontal, 12)
     }
 
+    private var displaySettingsGroup: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "menubar.rectangle")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 18)
+                Text("状态栏展示")
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+            }
+
+            VStack(spacing: 8) {
+                DisplayToggleRow(
+                    title: "图标",
+                    systemImage: "cube.transparent",
+                    isOn: configurationBinding(\.showIcon)
+                )
+                DisplayToggleRow(
+                    title: "任务状态",
+                    systemImage: "waveform.path.ecg",
+                    isOn: configurationBinding(\.showTaskStatus)
+                )
+                DisplayToggleRow(
+                    title: "5小时限额",
+                    systemImage: "clock",
+                    isOn: configurationBinding(\.showShortWindow)
+                )
+                DisplayToggleRow(
+                    title: "周限额",
+                    systemImage: "calendar",
+                    isOn: configurationBinding(\.showLongWindow)
+                )
+                DisplayToggleRow(
+                    title: "重置次数",
+                    systemImage: "arrow.counterclockwise.circle",
+                    isOn: configurationBinding(\.showResetCredits)
+                )
+            }
+        }
+        .padding(12)
+        .background(
+            Color.secondary.opacity(0.05),
+            in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(Color(nsColor: .separatorColor).opacity(0.4), lineWidth: 0.5)
+        )
+    }
+
+    private var footerActions: some View {
+        HStack {
+            Spacer()
+            Button(role: .destructive) {
+                NSApplication.shared.terminate(nil)
+            } label: {
+                Label("退出应用", systemImage: "power")
+            }
+            .controlSize(.small)
+        }
+    }
+
     private var taskDetailText: String {
         guard !store.activity.isEmpty, store.activity != store.phase.title else {
             return store.phase.title
@@ -120,6 +186,37 @@ struct StatusPanelView: View {
         default:
             return .green
         }
+    }
+
+    private func configurationBinding(
+        _ keyPath: WritableKeyPath<StatusBarConfiguration, Bool>
+    ) -> Binding<Bool> {
+        Binding {
+            store.statusBarConfiguration[keyPath: keyPath]
+        } set: { value in
+            store.updateStatusBarConfiguration(keyPath, to: value)
+        }
+    }
+}
+
+private struct DisplayToggleRow: View {
+    var title: String
+    var systemImage: String
+    @Binding var isOn: Bool
+
+    var body: some View {
+        Toggle(isOn: $isOn) {
+            Label {
+                Text(title)
+            } icon: {
+                Image(systemName: systemImage)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 18)
+            }
+            .font(.caption)
+        }
+        .toggleStyle(.switch)
+        .controlSize(.small)
     }
 }
 

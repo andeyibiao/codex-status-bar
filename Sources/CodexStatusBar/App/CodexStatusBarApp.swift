@@ -16,11 +16,20 @@ struct CodexStatusBarApp: App {
         MenuBarExtra {
             StatusPanelView()
                 .environmentObject(store)
-                .frame(width: 360)
+                .frame(width: 380)
         } label: {
-            Text(store.statusBarText)
-                .font(.system(size: 12, design: .monospaced))
-                .opacity(store.needsUserAttention && store.isAttentionDimmed ? 0.25 : 1)
+            HStack(spacing: 5) {
+                if store.statusBarConfiguration.showIcon {
+                    Image(systemName: "cube.transparent")
+                        .font(.system(size: 13, weight: .semibold))
+                }
+
+                if !store.statusBarText.isEmpty {
+                    Text(store.statusBarText)
+                        .font(.system(size: 12, design: .monospaced))
+                }
+            }
+            .opacity(store.needsUserAttention && store.isAttentionDimmed ? 0.25 : 1)
         }
         .menuBarExtraStyle(.window)
     }

@@ -6,6 +6,11 @@ final class CodexStatusStore: ObservableObject {
     @Published var activity = "连接中"
     @Published var quota: RateLimitSnapshot?
     @Published var isAttentionDimmed = false
+    @Published var statusBarConfiguration = StatusBarConfiguration.load() {
+        didSet {
+            statusBarConfiguration.save()
+        }
+    }
 
     private let client = CodexAppServerClient()
     private let resetCreditsClient = CodexResetCreditsClient()
@@ -18,7 +23,11 @@ final class CodexStatusStore: ObservableObject {
     private var attentionBlinkTask: Task<Void, Never>?
 
     var statusBarText: String {
-        "\(statusBarTaskText) | \(statusBarQuotaText)"
+        let text = statusBarTextComponents.joined(separator: " | ")
+        if text.isEmpty && !statusBarConfiguration.showIcon {
+            return "Codex"
+        }
+        return text
     }
 
     var statusBarTaskText: String {
@@ -26,13 +35,46 @@ final class CodexStatusStore: ObservableObject {
     }
 
     var statusBarQuotaText: String {
+        [
+            statusBarShortWindowText,
+            statusBarLongWindowText,
+            statusBarResetCreditsText
+        ].joined(separator: " | ")
+    }
+
+    var statusBarShortWindowText: String {
         let fiveHour = StatusFormatters.percentText(quota?.shortWindow?.remainingPercent)
         let fiveHourReset = StatusFormatters.statusBarTimeText(quota?.shortWindow?.resetsAt)
+        return "5h \(fiveHour)/\(fiveHourReset)"
+    }
+
+    var statusBarLongWindowText: String {
         let weekly = StatusFormatters.percentText(quota?.longWindow?.remainingPercent)
         let weeklyReset = StatusFormatters.statusBarDateTimeText(quota?.longWindow?.resetsAt)
+        return "周 \(weekly)/\(weeklyReset)"
+    }
+
+    var statusBarResetCreditsText: String {
         let resets = resetCreditsCountText(quota?.resetCreditsAvailable)
         let resetExpiry = StatusFormatters.statusBarDateTimeText(quota?.resetCreditsExpiresAt)
-        return "5h \(fiveHour)/\(fiveHourReset) | 周 \(weekly)/\(weeklyReset) | 重置 \(resets)/\(resetExpiry)"
+        return "重置 \(resets)/\(resetExpiry)"
+    }
+
+    var statusBarTextComponents: [String] {
+        var components: [String] = []
+        if statusBarConfiguration.showTaskStatus {
+            components.append(statusBarTaskText)
+        }
+        if statusBarConfiguration.showShortWindow {
+            components.append(statusBarShortWindowText)
+        }
+        if statusBarConfiguration.showLongWindow {
+            components.append(statusBarLongWindowText)
+        }
+        if statusBarConfiguration.showResetCredits {
+            components.append(statusBarResetCreditsText)
+        }
+        return components
     }
 
     var needsUserAttention: Bool {
@@ -49,6 +91,15 @@ final class CodexStatusStore: ObservableObject {
     func resetCreditsCountText(_ value: String?) -> String {
         guard let value, !value.isEmpty else { return "--" }
         return "\(value)次"
+    }
+
+    func updateStatusBarConfiguration(
+        _ keyPath: WritableKeyPath<StatusBarConfiguration, Bool>,
+        to value: Bool
+    ) {
+        var configuration = statusBarConfiguration
+        configuration[keyPath: keyPath] = value
+        statusBarConfiguration = configuration
     }
 
     init() {
